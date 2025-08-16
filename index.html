@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Brick Breaker</title>
+    <!-- Link to the external CSS file -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Link to the Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="game-container">
+    <h1 class="game-title">Brick Breaker</h1>
+    <p class="game-subtitle">Now smoother with edge-safe paddle hits!</p>
+
+    <div id="canvas-container">
+      <canvas id="gameCanvas"></canvas>
+      <div id="levelCompleteBanner">LEVEL COMPLETE!</div>
+    </div>
+
+    <div id="game-controls" class="game-controls">
+      <button id="startButton" class="game-button">Start</button>
+      <button id="resetButton" class="game-button reset-button">Reset All</button>
+    </div>
+    <div id="message" class="message-box"></div>
+  </div>
+
+  <div id="gameOverModal" class="modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="modal-content">
+      <h2 id="modalTitle">LEVEL FAILED</h2>
+      <p id="modalScore">Final Score: 0</p>
+      <button id="retryButton" class="game-button">Retry Level</button>
+    </div>
+  </div>
+    <!-- Link to the external JavaScript file -->
+    <script src="script.js" defer></script>
+</body>
+</html>
+
