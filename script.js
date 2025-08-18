@@ -41,6 +41,54 @@ const paddle = { x: 0, height: 15, width: 120 };
 const brickConfig = { width: 65, height: 20, padding: 10, offsetTop: 50, offsetLeft: 40 };
 let bricks = [];
 
+/* ========= Sliding brick window state =========
+   We only render a "window" of rows that fit on screen.
+   As the top visible row is fully cleared, we slide the window down by 1 row,
+   bringing the next hidden row into view with a short animation.
+*/
+let visibleRowStart = 0; // inclusive
+let visibleRowEnd = 0;   // exclusive
+let sliding = false;     // if a slide animation is in progress
+let slideOffset = 0;     // current pixel offset for slide
+let slideStepPx = 0;     // per-frame pixels to move during slide (derived from scale)
+let lastFrameTime = 0;   // for time-based slide speed (smoother across devices)
+
+/* Utility: compute how many rows can fit in the current canvas.
+   We keep bricks in roughly the top ~55% of the playfield to avoid overlap with
+   paddle and to leave room for the HUD. */
+function computeRowsFit() {
+  const pad = brickConfig.padding * scaleFactor;
+  const bh = brickConfig.height * scaleFactor;
+  const offTop = brickConfig.offsetTop * scaleFactor;
+
+  // Available vertical area for bricks
+  const available = Math.max(0, canvas.height * 0.55 - offTop);
+  const perRow = bh + pad;
+  const maxRows = Math.max(1, Math.floor(available / perRow));
+  return { maxRows, perRow, offTop, bh, pad };
+}
+
+function ensureVisibleWindowWithinBounds() {
+  const cfg = generateLevelConfig(level);
+  const { maxRows } = computeRowsFit();
+
+  // Clamp window size to what fits
+  const desiredSize = Math.min(maxRows, cfg.rowCount);
+  const currentSize = Math.max(0, visibleRowEnd - visibleRowStart);
+
+  if (currentSize !== desiredSize) {
+    // Try to anchor on current start, expand or shrink end
+    visibleRowEnd = Math.min(cfg.rowCount, visibleRowStart + desiredSize);
+    // If we ran past end, shift start back
+    visibleRowStart = Math.max(0, visibleRowEnd - desiredSize);
+  }
+
+  // Safety clamps
+  if (visibleRowStart < 0) visibleRowStart = 0;
+  if (visibleRowEnd > cfg.rowCount) visibleRowEnd = cfg.rowCount;
+  if (visibleRowStart > visibleRowEnd) visibleRowStart = visibleRowEnd;
+}
+
 function resizeCanvas() {
   const container = document.getElementById('canvas-container');
   let newWidth = container.clientWidth;
@@ -65,13 +113,19 @@ function resizeCanvas() {
   ball.radius = Math.max(6, 10 * scaleFactor);
   paddle.width = Math.max(80, 120 * scaleFactor);
   paddle.height = Math.max(10, 15 * scaleFactor);
+
+  // Recompute slide speed to feel consistent across sizes
+  slideStepPx = Math.max(6, 18 * scaleFactor);
+
+  // Make sure visible window still valid after resize
+  ensureVisibleWindowWithinBounds();
 }
 
 function generateLevelConfig(currentLevel) {
   return {
     rowCount: 4 + currentLevel,
     columnCount: 6 + currentLevel,
-    // MODIFIED: Increased the multiplier from 0.5 to 0.8 for a faster speed increase per level
+    // Speed increases per level, scaled
     speed: (2.5 + currentLevel * 0.8) * scaleFactor,
     scorePerBrick: 10 * currentLevel
   };
@@ -82,12 +136,20 @@ function initBricks() {
   bricks = [];
   totalBricks = cfg.rowCount * cfg.columnCount;
   remainingBricks = totalBricks;
+
   for (let c = 0; c < cfg.columnCount; c++) {
     bricks[c] = [];
     for (let r = 0; r < cfg.rowCount; r++) {
       bricks[c][r] = { x: 0, y: 0, status: 1, w: 0, h: 0 };
     }
   }
+
+  // Initial visible window based on what fits
+  const { maxRows } = computeRowsFit();
+  visibleRowStart = 0;
+  visibleRowEnd = Math.min(cfg.rowCount, maxRows);
+  sliding = false;
+  slideOffset = 0;
 }
 
 function setupLevel() {
@@ -127,43 +189,67 @@ function drawPaddle() {
   ctx.closePath();
 }
 
-// Dynamic-fit, centered brick layout that never overflows canvas width
+/* Dynamic-fit, centered brick layout that never overflows canvas width
+   + sliding window support (with small animation) */
 function drawBricks() {
   const cfg = generateLevelConfig(level);
   const colors = ['#f87171','#fb923c','#facc15','#4ade80','#38bdf8','#a78bfa'];
 
-  const pad = brickConfig.padding * scaleFactor;
-  const offTop = brickConfig.offsetTop * scaleFactor;
+  const { pad, offTop, bh } = computeRowsFit();
 
-  // Compute brick width to fit canvas with margins and padding, then center
+  // Width calc to fit columns within canvas with nice margins
   const cols = cfg.columnCount;
   const rows = cfg.rowCount;
   const minMarginX = 12 * scaleFactor;
   const totalPadding = pad * (cols - 1);
 
-  // Fit width: bw is derived to ensure grid fits inside canvas with margins
+  // Brick width to fit
   let bw = (canvas.width - 2 * minMarginX - totalPadding) / cols;
-  // Clamp to a sensible minimum to avoid too-thin bricks on tiny screens
   const minBw = 22 * scaleFactor;
   if (bw < minBw) bw = minBw;
 
-  // Now recompute left margin to perfectly center the grid
+  // Center horizontally
   const totalGridWidth = cols * bw + totalPadding;
   const startX = Math.max(minMarginX, (canvas.width - totalGridWidth) / 2);
 
-  const bh = brickConfig.height * scaleFactor;
+  // Draw current visible rows, shifted by slideOffset
+  const start = visibleRowStart;
+  const endExclusive = visibleRowEnd;
 
+  // Draw rows currently in the window
   for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
+    for (let r = start; r < endExclusive; r++) {
       const b = bricks[c][r];
       if (b.status === 1) {
+        const localIndex = r - start;
+        // During slide, move the whole visible block downward by slideOffset
         const bx = startX + c * (bw + pad);
-        const by = offTop + r * (bh + pad);
+        const by = offTop + localIndex * (bh + pad) + slideOffset;
         b.x = bx; b.y = by; b.w = bw; b.h = bh;
 
         ctx.beginPath();
         ctx.roundRect(bx, by, bw, bh, 5 * scaleFactor);
         ctx.fillStyle = colors[(r + c) % colors.length];
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+  }
+
+  // While sliding, also render the incoming next row above, so it "slides in"
+  if (sliding && endExclusive < rows) {
+    const nextRow = endExclusive;
+    for (let c = 0; c < cols; c++) {
+      const b = bricks[c][nextRow];
+      if (b.status === 1) {
+        const bx = startX + c * (bw + pad);
+        // Incoming row starts above offTop and moves down with slideOffset
+        const by = offTop - ((bh + pad) - slideOffset);
+        // We DO NOT update b.x/b.y persistent positions for incoming row yet,
+        // to avoid collisions before the slide completes.
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bw, bh, 5 * scaleFactor);
+        ctx.fillStyle = colors[(nextRow + c) % colors.length];
         ctx.fill();
         ctx.closePath();
       }
@@ -179,10 +265,49 @@ function drawHUD() {
   ctx.fillText(`Level: ${level}`, canvas.width / 2 - 60 * scaleFactor, 20 * scaleFactor);
 }
 
+/* After any brick break, check if the top visible row is fully cleared.
+   If yes (and there are hidden rows), start a slide animation to bring
+   the next hidden row into view. */
+function maybeStartSlide() {
+  if (sliding) return;
+  const cfg = generateLevelConfig(level);
+  if (visibleRowEnd >= cfg.rowCount) return; // nothing to slide in
+
+  // Is the top visible row cleared?
+  let cleared = true;
+  for (let c = 0; c < cfg.columnCount; c++) {
+    if (bricks[c][visibleRowStart].status === 1) { cleared = false; break; }
+  }
+  if (!cleared) return;
+
+  // Begin slide
+  slideOffset = 0;
+  sliding = true;
+}
+
+function updateSlide(deltaMs) {
+  if (!sliding) return;
+
+  const { perRow } = computeRowsFit();
+  // time-based movement for smoother feel
+  const step = slideStepPx * (deltaMs / 16.6667); // normalize to ~60fps base
+  slideOffset += step;
+
+  if (slideOffset >= perRow) {
+    // Slide complete: commit window shift by one row
+    slideOffset = 0;
+    sliding = false;
+    visibleRowStart += 1;
+    visibleRowEnd += 1;
+    ensureVisibleWindowWithinBounds();
+  }
+}
+
 function detectBrickCollisions() {
   const cfg = generateLevelConfig(level);
+  // Only collide with rows currently solidly in the window (not the incoming one mid-slide)
   for (let c = 0; c < cfg.columnCount; c++) {
-    for (let r = 0; r < cfg.rowCount; r++) {
+    for (let r = visibleRowStart; r < visibleRowEnd; r++) {
       const b = bricks[c][r];
       if (b.status === 1) {
         if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
@@ -190,16 +315,27 @@ function detectBrickCollisions() {
           b.status = 0;
           score += cfg.scorePerBrick;
           remainingBricks--;
+
+          // Check if we should slide in the next row
+          maybeStartSlide();
+
           if (remainingBricks === 0) { levelComplete(); }
           saveGameState();
+          return; // avoid multiple hits in one frame
         }
       }
     }
   }
 }
 
-function gameLoop() {
+function gameLoop(timestamp) {
   if (!isGameRunning) return;
+
+  const deltaMs = lastFrameTime ? (timestamp - lastFrameTime) : 16.7;
+  lastFrameTime = timestamp;
+
+  // Progress any slide animation
+  updateSlide(deltaMs);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBricks();
@@ -239,7 +375,8 @@ function startGame(resume = false) {
   if (!resume) { score = 0; level = 1; setupLevel(); }
   else loadGameState();
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  gameLoop();
+  lastFrameTime = 0;
+  gameLoop(performance.now());
   startButton.style.display = 'none';
   resetButton.style.display = 'none';
   messageEl.textContent = '';
@@ -264,7 +401,8 @@ function levelComplete() {
     level++;
     setupLevel();
     isGameRunning = true;
-    gameLoop();
+    lastFrameTime = 0;
+    gameLoop(performance.now());
   }, 1800);
 }
 
@@ -319,7 +457,8 @@ retryButton.addEventListener('click', () => {
   gameOverModal.classList.add('hidden');
   setupLevel();
   isGameRunning = true;
-  gameLoop();
+  lastFrameTime = 0;
+  gameLoop(performance.now());
 });
 
 resetButton.addEventListener('click', () => {
@@ -327,8 +466,18 @@ resetButton.addEventListener('click', () => {
   location.reload();
 });
 
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', resizeCanvas);
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  // Keep ball inside bounds after resize
+  ball.x = Math.min(Math.max(ball.radius, ball.x), canvas.width - ball.radius);
+  ball.y = Math.min(Math.max(ball.radius, ball.y), canvas.height - ball.radius);
+});
+window.addEventListener('orientationchange', () => {
+  resizeCanvas();
+  ball.x = Math.min(Math.max(ball.radius, ball.x), canvas.width - ball.radius);
+  ball.y = Math.min(Math.max(ball.radius, ball.y), canvas.height - ball.radius);
+});
 window.addEventListener('beforeunload', saveGameState);
 
+// Initial layout
 resizeCanvas();
