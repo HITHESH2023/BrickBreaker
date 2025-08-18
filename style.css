@@ -1,6 +1,7 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; padding: 0; }
+
 body {
   font-family: 'Press Start 2P', cursive;
   background: #0f172a; /* Fallback; main background is 3D canvas */
@@ -8,10 +9,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;  /* top align instead of center */
   min-height: 100vh;
   padding: 1rem;
-  overflow: hidden;
+
+  /* allow scrolling instead of locking */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* 3D Background Canvas */
@@ -23,9 +27,18 @@ body {
   z-index: -1;
 }
 
-.game-container { text-align: center; width: 100%; max-width: 900px; margin: auto; }
+.game-container { 
+  text-align: center; 
+  width: 100%; 
+  max-width: 900px; 
+  margin: auto; 
+}
 
-#canvas-container { width: 100%; margin-top: 0.5rem; position: relative; }
+#canvas-container { 
+  width: 100%; 
+  margin-top: 0.5rem; 
+  position: relative; 
+}
 canvas#gameCanvas {
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(3px);
@@ -39,30 +52,30 @@ canvas#gameCanvas {
   padding-top: 20px; /* gap for HUD */
 }
 
-.game-title { font-size: 2rem; margin-bottom: 0.5rem; text-shadow: 2px 2px 6px #000; }
-.game-subtitle { font-size: 0.85rem; margin-bottom: 0.5rem; color: #a5b4fc; }
-.message-box { margin-top: 0.75rem; font-size: 1.2rem; font-weight: bold; height: 2rem; text-shadow: 2px 2px 6px #000; transition: opacity 0.3s ease; }
+.game-title { 
+  font-size: 2rem; 
+  margin-bottom: 0.5rem; 
+  text-shadow: 2px 2px 6px #000; 
+}
+.game-subtitle { 
+  font-size: 0.85rem; 
+  margin-bottom: 0.5rem; 
+  color: #a5b4fc; 
+}
+.message-box { 
+  margin-top: 0.75rem; 
+  font-size: 1.2rem; 
+  font-weight: bold; 
+  height: 2rem; 
+  text-shadow: 2px 2px 6px #000; 
+  transition: opacity 0.3s ease; 
+}
 
 .game-controls {
   margin-top: 1rem;
   display: flex;
   justify-content: center;
   gap: 1rem;
-}
-
-/* Mobile override: float controls at bottom of screen */
-@media (max-width: 768px) {
-  .game-controls {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.75);
-    padding: 0.5rem 1rem;
-    border-radius: 0.75rem;
-    z-index: 5;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-  }
 }
 
 .game-button {
@@ -81,8 +94,14 @@ canvas#gameCanvas {
   transform: translateY(-3px) scale(1.05);
   box-shadow: 0 8px 20px rgba(0,0,0,.35);
 }
-.reset-button { background: linear-gradient(135deg, #ef4444, #b91c1c); padding: 0.5rem 1rem; font-size: 0.8rem; }
-.reset-button:hover { background: linear-gradient(135deg, #dc2626, #7f1d1d); }
+.reset-button { 
+  background: linear-gradient(135deg, #ef4444, #b91c1c); 
+  padding: 0.5rem 1rem; 
+  font-size: 0.8rem; 
+}
+.reset-button:hover { 
+  background: linear-gradient(135deg, #dc2626, #7f1d1d); 
+}
 
 .modal-overlay {
   position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.75);
@@ -102,8 +121,15 @@ canvas#gameCanvas {
 .modal-content p { font-size: 1.2rem; margin-bottom: 1.5rem; }
 .hidden { display: none; }
 
-@keyframes popin { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@keyframes levelCompleteFlash { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+@keyframes popin { 
+  from { transform: scale(0.8); opacity: 0; } 
+  to { transform: scale(1); opacity: 1; } 
+}
+@keyframes levelCompleteFlash { 
+  0% { transform: scale(0.5); opacity: 0; } 
+  50% { transform: scale(1.2); opacity: 1; } 
+  100% { transform: scale(1); opacity: 0; } 
+}
 
 #levelCompleteBanner {
   position: absolute;
