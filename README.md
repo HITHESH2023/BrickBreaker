@@ -25,10 +25,10 @@ A modern, responsive remake of the classic **Brick Breaker** game with **3D anim
   - Resume from where you left off.  
 
 ## 📂 Project Structure  
-├── index.html # Main HTML structure
-├── style.css # Styling for game, UI, and modals
-├── script.js # Game logic, rendering, input handling
-├── background.js # Animated 3D starfield background
+- index.html # Main HTML structure.
+- style.css # Styling for game, UI, and modals.
+- script.js # Game logic, rendering, input handling.
+- background.js # Animated 3D starfield background.
 
 
 ## 🚀 How to Run  
