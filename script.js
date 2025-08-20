@@ -488,4 +488,3 @@ window.addEventListener('beforeunload', saveGameState);
 
 // Initial layout
 resizeCanvas();
-
