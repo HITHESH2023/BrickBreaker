@@ -133,7 +133,7 @@ function generateLevelConfig(currentLevel) {
     rowCount: 4 + currentLevel,
     columnCount: 6 + currentLevel,
     // Speed increases per level, scaled
-    speed: (1 + currentLevel * 0.8) * scaleFactor,
+    speed: (1 + currentLevel * 0.5) * scaleFactor,
     scorePerBrick: 10 * currentLevel
   };
 }
@@ -488,4 +488,5 @@ window.addEventListener('beforeunload', saveGameState);
 
 // Initial layout
 resizeCanvas();
+
 
